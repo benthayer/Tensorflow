@@ -1,4 +1,4 @@
-from experiments.sudoku_2x2_generator import generate, convert_to_classes, convert_to_normal, remove_nums
+from experiments.sudoku_2x2_generator import convert_to_normal, get_training_and_test_sets
 import tensorflow as tf
 import numpy as np
 
@@ -28,29 +28,17 @@ cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=
 train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
 
-n = 10000
-boards = np.zeros((n, 4 ** 3))
-answer_boards = np.zeros((n, 4 ** 3))
-for i in range(n):
-    # each iteration takes about 2.82 for generation/removal, 3.57 with saving
-    board = generate()
-    answer_boards[i] = convert_to_classes(board).reshape((4 ** 3))
-    remove_nums(board)
-    class_board = convert_to_classes(board)
-    boards[i] = class_board.reshape((4 ** 3))
-
+training_puzzles, training_solutions, test_puzzles, test_solutions = get_training_and_test_sets()
 
 init = tf.global_variables_initializer()
 sess = tf.Session()
 sess.run(init)
 
-for i in range(1000):
-    batch_xs, batch_ys = boards[i*10:(i+1)*10], answer_boards[i*10:(i+1)*10]
-    sess.run(train_step, feed_dict={data: batch_xs, y_: batch_ys})
+k = 1000
+for i in range(10000):
+    sess.run(train_step, feed_dict={data: training_puzzles, y_: training_solutions})
     if i % 100 == 0:
         print("Batch {} complete".format(i))
-
-sess.run(train_step, feed_dict={data: boards, y_: answer_boards})
 
 correct_prediction = tf.equal(
     tf.argmax(
@@ -60,10 +48,22 @@ correct_prediction = tf.equal(
         tf.reshape(y_, (-1, 4, 4, 4)),
         2))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-print("Accuracy: ", sess.run(accuracy, feed_dict={data: boards, y_: answer_boards}))
+accuracy = sess.run(accuracy, feed_dict={data: test_puzzles, y_: test_solutions})
 W = sess.run(W1)
 b = sess.run(b1)
-for i in range(5):
-    guessed_board = np.matmul(boards[i], W) + b
-    print(convert_to_normal(answer_boards[i].reshape((4, 4, 4))))
-    print(convert_to_normal(guessed_board.reshape((4, 4, 4))))
+incorrect = 0
+for i in range(len(test_puzzles)):
+    guessed_board = sess.run(y, feed_dict={data: [test_puzzles[i]]})
+
+    if not np.array_equal(
+            convert_to_normal(guessed_board.reshape((4, 4, 4))),
+            convert_to_normal(test_solutions[i].reshape(4, 4, 4))):
+        incorrect += 1
+        if incorrect > 4:
+            break
+        print()
+        print("Board:\n", convert_to_normal(test_puzzles[i].reshape((4, 4, 4)), ones=True))
+        print("Guess:\n", convert_to_normal(guessed_board.reshape((4, 4, 4))))
+        print("Answer:\n", convert_to_normal(test_solutions[i].reshape((4, 4, 4))))
+
+print("Accuracy = ", accuracy)
