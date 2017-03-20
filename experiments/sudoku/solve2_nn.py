@@ -1,6 +1,7 @@
-from experiments.sudoku_2x2_generator import convert_to_normal, get_training_and_test_sets
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+
+from experiments.sudoku.gen2 import convert_to_normal, get_training_and_test_sets
 
 
 def weight_variable(shape):
